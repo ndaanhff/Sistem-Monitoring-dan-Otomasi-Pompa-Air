@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Otomasi Pompa Air - IoT Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans">
+
+    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-10 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-blue-400 tracking-tight">WaterPump IoT</h1>
+                <p class="text-xs text-slate-400">Sistem Monitoring & Otomasi Pompa Air</p>
+            </div>
+            <div id="connection-status" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 text-sm font-medium transition-all">
+                <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
+                Terputus
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <div class="bg-slate-800/40 border border-slate-800 rounded-2xl p-6 flex flex-col items-center justify-center min-h-[350px]">
+            <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-6">Visualisasi Level Air</h2>
+            
+            <div class="relative w-40 h-60 border-4 border-slate-600 rounded-b-2xl rounded-t-lg bg-slate-950 overflow-hidden flex flex-col justify-end shadow-inner">
+                <div id="water-level" class="w-full bg-gradient-to-t from-blue-600 to-cyan-400 transition-all duration-1000 ease-in-out" style="height: 0%;">
+                    <div class="w-full h-2 bg-white/20 opacity-50 animate-pulse"></div>
+                </div>
+                <div class="absolute inset-0 flex items-center justify-center">
+                    <span id="water-percentage" class="text-3xl font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">0%</span>
+                </div>
+            </div>
+            <p class="text-xs text-slate-500 mt-4 text-center">Berdasarkan pembacaan jarak sensor ultrasonik</p>
+        </div>
+
+        <div class="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
+            
+            <div class="bg-slate-800/40 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Jarak ke Air</p>
+                    <h3 class="text-slate-500 text-sm">Sensor Ultrasonic HC-SR04</h3>
+                </div>
+                <div class="my-6">
+                    <span id="txt-distance" class="text-5xl font-extrabold text-slate-100">--</span>
+                    <span class="text-2xl font-medium text-slate-400 ml-1">cm</span>
+                </div>
+                <div class="text-xs text-slate-400 bg-slate-900/50 p-2.5 rounded-lg border border-slate-800/80">
+                    Batas Atas: <span class="text-cyan-400 font-bold">50 cm</span> | Batas Bawah: <span class="text-amber-500 font-bold">150 cm</span>
+                </div>
+            </div>
+
+            <div class="bg-slate-800/40 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Status Pompa Air</p>
+                    <h3 class="text-slate-500 text-sm">Output Relay Module</h3>
+                </div>
+                <div class="my-6 flex items-center gap-4">
+                    <div id="pump-indicator" class="w-4 h-4 rounded-full bg-slate-600 shadow-[0_0_10px_rgba(71,85,105,0.5)]"></div>
+                    <span id="txt-pump" class="text-3xl font-bold text-slate-400">OFFLINE</span>
+                </div>
+                <p id="pump-desc" class="text-xs text-slate-400">Menunggu data dari broker...</p>
+            </div>
+
+            <div class="sm:col-span-2 bg-slate-800/40 border border-slate-800 rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div class="flex items-center gap-4">
+                    <div id="alarm-box" class="p-4 bg-slate-900 rounded-xl border border-slate-800 text-slate-500 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Sistem Alarm</p>
+                        <h3 id="txt-alarm" class="text-xl font-bold text-slate-500 mt-0.5">STANDBY</h3>
+                    </div>
+                </div>
+                <p id="alarm-desc" class="text-sm text-slate-400 max-w-xs sm:text-right">Buzzer akan berbunyi otomatis saat air menyentuh batas penuh.</p>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // Menggunakan Public MQTT Broker EMQX via Secure WebSocket (WSS) agar aman di-deploy ke Vercel
+        const brokerUrl = 'wss://broker.emqx.io:8084/mqtt';
+        
+        // Buat Client ID unik agar tidak bentrok dengan user lain
+        const clientId = 'web_waterpump_' + Math.random().toString(16).substr(2, 8);
+        
+        // Topik MQTT (Harus disamakan dengan program ESP32)
+        const topicDistance = 'rumah/toren/jarak';
+        const topicPump = 'rumah/toren/pompa';
+        const topicAlarm = 'rumah/toren/alarm';
+
+        const client = mqtt.connect(brokerUrl, { clientId: clientId, clean: true });
+
+        const connStatus = document.getElementById('connection-status');
+
+        // Event saat berhasil terkoneksi ke Broker
+        client.on('connect', () => {
+            connStatus.innerHTML = '<span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>Terhubung';
+            connStatus.className = "flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-sm font-medium transition-all";
+            
+            // Subscribe ke topik-topik projek
+            client.subscribe([topicDistance, topicPump, topicAlarm], (err) => {
+                if (!err) console.log("Berhasil subscribe ke semua topik.");
+            });
+        });
+
+        // Event saat koneksi terputus
+        client.on('close', () => {
+            connStatus.innerHTML = '<span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>Terputus';
+            connStatus.className = "flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 text-sm font-medium transition-all";
+        });
+
+        // Event ketika menerima pesan/data baru
+        client.on('message', (topic, message) => {
+            const data = message.toString();
+            
+            if (topic === topicDistance) {
+                const distance = parseInt(data);
+                document.getElementById('txt-distance').innerText = distance;
+
+                // Hitung persentase kapasitas tangki air
+                // Asumsi: Jarak 150cm = Kosong (0%), Jarak 50cm = Penuh (100%)
+                let percentage = Math.round(((150 - distance) / (150 - 50)) * 100);
+                if (percentage > 100) percentage = 100;
+                if (percentage < 0) percentage = 0;
+
+                document.getElementById('water-level').style.height = percentage + '%';
+                document.getElementById('water-percentage').innerText = percentage + '%';
+            } 
+            
+            else if (topic === topicPump) {
+                const pIndicator = document.getElementById('pump-indicator');
+                const pText = document.getElementById('txt-pump');
+                const pDesc = document.getElementById('pump-desc');
+
+                if (data === "ON") {
+                    pIndicator.className = "w-4 h-4 rounded-full bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.8)] animate-pulse";
+                    pText.innerText = "MENYALA";
+                    pText.className = "text-3xl font-bold text-emerald-400";
+                    pDesc.innerText = "Mengisi air ke dalam toren...";
+                } else {
+                    pIndicator.className = "w-4 h-4 rounded-full bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.5)]";
+                    pText.innerText = "MATI";
+                    pText.className = "text-3xl font-bold text-rose-400";
+                    pDesc.innerText = "Pompa dalam kondisi mati (standby).";
+                }
+            } 
+            
+            else if (topic === topicAlarm) {
+                const aBox = document.getElementById('alarm-box');
+                const aText = document.getElementById('txt-alarm');
+                const aDesc = document.getElementById('alarm-desc');
+
+                if (data === "ON") {
+                    aBox.className = "p-4 bg-amber-500 rounded-xl border border-amber-400 text-slate-950 animate-bounce";
+                    aText.innerText = "ALARM AKTIF!";
+                    aText.className = "text-xl font-bold text-amber-400 animate-pulse";
+                    aDesc.innerText = "Peringatan! Air sudah penuh, segera matikan aliran utama jika diperlukan.";
+                } else {
+                    aBox.className = "p-4 bg-slate-900 rounded-xl border border-slate-800 text-slate-500";
+                    aText.innerText = "STANDBY";
+                    aText.className = "text-xl font-bold text-slate-500 mt-0.5";
+                    aDesc.innerText = "Buzzer akan berbunyi otomatis saat air menyentuh batas penuh.";
+                }
+            }
+        });
+    </script>
+</body>
+</html>
